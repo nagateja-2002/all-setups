@@ -1,12 +1,19 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+if [[ "${EUID}" -ne 0 ]]; then
+  echo "Run this legacy setup script as root or through an approved privilege-escalation method." >&2
+  exit 1
+fi
+
 apt update -y
-apt install openjdk-11-jre-headless
+apt install -y openjdk-11-jre-headless wget
 wget https://dlcdn.apache.org/tomcat/tomcat-9/v9.0.115/bin/apache-tomcat-9.0.115.tar.gz
-tar -zxvf apache-tomcat-9.0.115.tar.gz
-sed -i '56  a\<role rolename="manager-gui"/>' apache-tomcat-9.0.115/conf/tomcat-users.xml
-sed -i '57  a\<role rolename="manager-script"/>' apache-tomcat-9.0.115/conf/tomcat-users.xml
-sed -i '58  a\<user username="tomcat" password="admin@123" roles="manager-gui, manager-script"/>' apache-tomcat-9.0.115/conf/tomcat-users.xml
-sed -i '59  a\</tomcat-users>' apache-tomcat-9.0.115/conf/tomcat-users.xml
-sed -i '56d' apache-tomcat-9.0.115/conf/tomcat-users.xml
-sed -i '21d' apache-tomcat-9.0.115/webapps/manager/META-INF/context.xml
-sed -i '22d'  apache-tomcat-9.0.115/webapps/manager/META-INF/context.xml
+tar -xzf apache-tomcat-9.0.115.tar.gz
+
+# No Manager account or password is created by this script.
+# Keep Tomcat's default manager context restrictions in place (localhost-only).
+# Configure any required admin user through approved secret management and
+# keep the Manager endpoint private rather than committing credentials.
+
 sh apache-tomcat-9.0.115/bin/startup.sh
