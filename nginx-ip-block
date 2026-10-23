@@ -1,22 +1,64 @@
-#app deployment script
+#!/usr/bin/env bash
+set -euo pipefail
 
-apt update -y
-apt install nginx git -y
-systemctl start nginx
-git clone https://github.com/devops0014/static-cycle-website-jenkins-docker-.git
-cd static-cycle-website-jenkins-docker-.git
-cp -r * /var/www/html/
+# Add one IP deny rule to the standard /etc/nginx/conf.d include directory.
+# NGINX must already be installed and /etc/nginx/conf.d/*.conf must be
+# included from the active http {} context. Test the change before reloading.
 
-#Get the ip:
-tail -f /var/log/nginx/access.log  | awk '{print $1}' 
+if [[ "${EUID}" -ne 0 ]]; then
+  echo "Run as root or through an approved privilege-escalation method." >&2
+  exit 1
+fi
 
+command -v nginx >/dev/null
+command -v python3 >/dev/null
+test -f /etc/nginx/nginx.conf
 
+if ! grep -Eq 'include[[:space:]]+/etc/nginx/conf\.d/\*\.conf;' /etc/nginx/nginx.conf; then
+  echo "Expected /etc/nginx/nginx.conf to include /etc/nginx/conf.d/*.conf. Review your config and add the include inside http {} before continuing." >&2
+  exit 1
+fi
 
-#blockip script
-echo "Enter IP to block:"
-read abc
+read -r -p "IP address to block (IPv4 or IPv6): " entered_ip
+ip_address="$(python3 - "${entered_ip}" <<'PY'
+import ipaddress
+import sys
 
-# Basic IP validation
-    sed -i "14i deny $abc/32;" /etc/nginx/nginx.conf
-    systemctl restart nginx
-    echo "IP $abc blocked."
+try:
+    print(ipaddress.ip_address(sys.argv[1].strip()).compressed)
+except ValueError:
+    raise SystemExit("Invalid IP address; no changes made.")
+PY
+)"
+
+blocked_file="/etc/nginx/conf.d/blocked-ips.conf"
+mkdir -p /etc/nginx/conf.d
+
+if grep -Fqx "deny ${ip_address};" "${blocked_file}" 2>/dev/null; then
+  echo "A deny rule for ${ip_address} already exists."
+  exit 0
+fi
+
+timestamp="$(date +%Y%m%d%H%M%S)"
+had_previous_file=false
+if [[ -f "${blocked_file}" ]]; then
+  cp -a "${blocked_file}" "${blocked_file}.backup.${timestamp}"
+  had_previous_file=true
+else
+  : > "${blocked_file}"
+fi
+
+printf 'deny %s;\n' "${ip_address}" >> "${blocked_file}"
+
+if nginx -t; then
+  systemctl reload nginx
+  echo "NGINX reloaded; blocked ${ip_address}."
+else
+  if [[ "${had_previous_file}" == true ]]; then
+    cp -a "${blocked_file}.backup.${timestamp}" "${blocked_file}"
+  else
+    rm -f "${blocked_file}"
+  fi
+  echo "NGINX validation failed. The configuration change was rolled back." >&2
+  exit 1
+fi
