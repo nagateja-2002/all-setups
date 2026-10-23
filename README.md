@@ -79,6 +79,9 @@ These commands help inspect a script; they do not prove that the script is safe.
 - Do not run every script as a batch.
 - Do not pipe remote downloads directly into a shell without reviewing the content and source.
 - Never commit real passwords, access tokens, cloud keys, SSH private keys, or production configuration.
+- The current `tomcat-users.xml` contains no active manager user, and `argocd.sh` uses local port-forward guidance rather than creating a public LoadBalancer. Do not reintroduce hard-coded credentials or public admin endpoints.
+- A previous version of `tomcat-users.xml` contained a hard-coded lab password. That value has been removed from the current file, but old Git history may still contain it. Rotate it anywhere it was ever reused; deleting a value from the current file does not purge it from prior commits.
+- The SonarQube example no longer grants world-writable (`777`) permissions, but it remains a legacy setup script that needs version/prerequisite review.
 - Replace demo credentials and open ports before any shared-environment use.
 - Do not apply examples to company or production systems without authorization and a reviewed change plan.
 - Treat this repository as a collection of examples, not as verified or production-ready installation procedures.
