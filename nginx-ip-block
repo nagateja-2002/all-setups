@@ -50,8 +50,7 @@ fi
 
 printf 'deny %s;\n' "${ip_address}" >> "${blocked_file}"
 
-if nginx -t; then
-  systemctl reload nginx
+if nginx -t && systemctl reload nginx; then
   echo "NGINX reloaded; blocked ${ip_address}."
 else
   if [[ "${had_previous_file}" == true ]]; then
