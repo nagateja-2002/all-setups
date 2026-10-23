@@ -1,9 +1,33 @@
+# Legacy Loki + Promtail local learning example
+#
+# NOTE: Loki/Promtail 2.8.0 is an old example. Review supported versions and
+# security advisories before use; do not treat these commands as production
+# deployment instructions. Prefer running this in a disposable local lab.
+#
+# Fetch the sample config from the pinned version:
 wget https://raw.githubusercontent.com/grafana/loki/v2.8.0/cmd/loki/loki-local-config.yaml -O loki-config.yaml
-docker run -itd --name loki -v /root/:/mnt/config -p 3100:3100 grafana/loki:2.8.0
-pblicip:3100/ready
-
 wget https://raw.githubusercontent.com/grafana/loki/v2.8.0/clients/cmd/promtail/promtail-docker-config.yaml -O promtail-config.yaml
-docker run -itd --name promtail -v $(pwd):/mnt/config -v /var/log:/var/log --link loki grafana/promtail:2.8.0 --config.file=/mnt/config/promtail-config.yaml
 
-datasource -- > add -- > loki -- > http://52.90.35.175:3100 -- > save and test
-explore view
+# Create a private Docker network for container-to-container traffic:
+docker network create logging-lab
+
+# Bind Loki to loopback so port 3100 is not exposed on every host interface.
+docker run -d --name loki --network logging-lab \
+  -v "$PWD/loki-config.yaml:/etc/loki/local-config.yaml:ro" \
+  -p 127.0.0.1:3100:3100 \
+  grafana/loki:2.8.0
+
+# Promtail needs read-only access to the config and local logs:
+docker run -d --name promtail --network logging-lab \
+  -v "$PWD/promtail-config.yaml:/mnt/config/promtail-config.yaml:ro" \
+  -v /var/log:/var/log:ro \
+  grafana/promtail:2.8.0 \
+  --config.file=/mnt/config/promtail-config.yaml
+
+# Check Loki locally:
+curl --fail http://127.0.0.1:3100/ready
+
+# For Grafana on the same Docker network, use http://loki:3100 as the Loki
+# data source URL. For Grafana running directly on the host, use
+# http://127.0.0.1:3100. Do not paste public IPs or expose Loki without an
+# intentional network/authentication design.
