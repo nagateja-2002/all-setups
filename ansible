@@ -1,45 +1,51 @@
-SETUP:
-Create 5 servers (1=ansible 2=dev 2=test)
-Connect all servers to mobaxterm
+# Ansible lab setup notes (legacy)
 
-ALL SERVERS:
-sudo -i
-1. hostnamectl set-hostname ansible/dev-1/dev-2/test-1/test-2
-sudo -i
+Use a disposable lab that you own. These notes replace the previous instance-specific IP addresses and root-login instructions with safer placeholders.
 
-2. passwd root
-3. vim /etc/ssh/sshd_config (uncomment: 38 , no=yes: 63)
-4. systemctl restart sshd
-5. systemctl status sshd
+## Lab layout
 
-ANSIBLE SERVER:
-amazon-linux-extras install ansible2 -y
-yum install python python-pip python-dlevel -y
-vim /etc/ansible/hosts   (inventory file)  (below: 12 th line)
+Create five disposable Linux instances in a private lab network: one Ansible control node, two development nodes, and two test nodes. Use private addresses and limit SSH access to the control node or your trusted administration IP.
 
+## Access and authentication
+
+- Use a dedicated non-root automation account (for example, `automation`) on managed nodes.
+- Configure SSH key-based access. Do not enable password-based root SSH or set `PermitRootLogin yes` on internet-accessible systems.
+- Protect the private key on the control node with restrictive permissions, such as `chmod 600 ~/.ssh/id_ed25519`.
+- Grant only the required sudo permissions to the automation account. Use Ansible privilege escalation when needed; do not make shared root passwords part of this repository.
+
+## Inventory example
+
+Create a local `inventory.ini` and replace the placeholders with the private IP addresses of your own lab machines:
+
+```ini
 [dev]
-172.31.81.244
-172.31.93.180
+dev-1 ansible_host=<DEV_1_PRIVATE_IP>
+dev-2 ansible_host=<DEV_2_PRIVATE_IP>
 
 [test]
-172.31.91.255
-172.31.93.101
+test-1 ansible_host=<TEST_1_PRIVATE_IP>
+test-2 ansible_host=<TEST_2_PRIVATE_IP>
 
-vim /etc/ansible/ansible.cfg (uncomment 14, 22)
+[all:vars]
+ansible_user=automation
+ansible_become=true
+```
 
-ssh-keygen  -- > enter 4 times
-ssh-copy-id root@private_ip of dev-1 -- > yes -- > password 
-ssh private_ip of dev-1
-ctrl + d
+Keep local inventory files, IPs, usernames, private-key paths, and environment-specific variables out of public commits unless they are non-sensitive examples.
 
-ssh-copy-id root@private_ip of dev-2 -- > yes -- > password 
-ssh private_ip of dev-2
-ctrl + d
+## Validate access
 
-ssh-copy-id root@private_ip of test-1 -- > yes -- > password 
-ssh private_ip of test-1
-ctrl + d
+From the control node, after installing Ansible and configuring the SSH key:
 
-ssh-copy-id root@private_ip of test-2 -- > yes -- > password 
-ssh private_ip of test-2
-ctrl + d
+```bash
+ansible --version
+ansible -i inventory.ini all -m ping
+```
+
+If a host fails, check DNS/IP reachability, security-group/firewall rules, SSH user/key selection, Python availability, and the Ansible error output before changing authentication settings.
+
+## Safety notes
+
+- The previous notes referenced concrete private IPs and encouraged root SSH/password setup. Those values and instructions have been removed from the current file.
+- Do not use production hosts for this lab.
+- Do not store SSH private keys, passwords, cloud keys, or live inventory data in this repository.
